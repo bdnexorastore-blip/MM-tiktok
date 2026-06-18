@@ -9,9 +9,17 @@ export default function AboutPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate real network fetch for the premium skeleton feel
-    const timer = setTimeout(() => setLoading(false), 1200);
-    return () => clearTimeout(timer);
+    // Only show skeleton on first visit
+    const hasLoaded = sessionStorage.getItem('app_skeleton_shown');
+    if (!hasLoaded) {
+      const timer = setTimeout(() => {
+        setLoading(false);
+        sessionStorage.setItem('app_skeleton_shown', 'true');
+      }, 1200);
+      return () => clearTimeout(timer);
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   return (

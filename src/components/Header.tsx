@@ -31,10 +31,7 @@ export default function Header({ title, showBack = false }: HeaderProps) {
       return;
     }
     closeMenu();
-    // Delay routing slightly to show the beautiful closure animation
-    setTimeout(() => {
-      router.push(path);
-    }, 280);
+    router.push(path);
   };
 
   return (
