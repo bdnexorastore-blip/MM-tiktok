@@ -12,12 +12,25 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "No URL provided" }, { status: 400 });
     }
 
-    // Pass a strong desktop User-Agent to force TikTok CDN to return the highest uncompressed bitrate stream
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://www.tiktok.com/"
+    const encodedHeaders = searchParams.get("headers");
+    let customHeaders = {};
+    if (encodedHeaders) {
+      try {
+        customHeaders = JSON.parse(Buffer.from(encodedHeaders, "base64").toString("utf-8"));
+      } catch (e) {
+        console.error("Failed to parse custom headers", e);
       }
+    }
+
+    // Pass a strong desktop User-Agent to force TikTok CDN to return the highest uncompressed bitrate stream
+    const headersToUse = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Referer": "https://www.tiktok.com/",
+      ...customHeaders
+    };
+
+    const response = await fetch(url, {
+      headers: headersToUse
     });
 
     if (!response.ok) throw new Error("Failed to fetch file from TikTok CDN");

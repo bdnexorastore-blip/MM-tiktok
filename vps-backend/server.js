@@ -122,8 +122,30 @@ app.post('/api/download', async (req, res) => {
       cover = videoData.thumbnail || '';
     }
 
-    // Get the direct video URL
-    const hd_url = videoData.url || (videoData.formats && videoData.formats.length > 0 ? videoData.formats[videoData.formats.length - 1].url : '');
+    // Find the highest quality unwatermarked video
+    let bestFormat = null;
+    let maxPixels = 0;
+
+    if (videoData.formats && videoData.formats.length > 0) {
+      for (const format of videoData.formats) {
+        // Skip formats that are explicitly audio-only or have a 'watermarked' note
+        if (format.vcodec === 'none' || (format.format_note && format.format_note.toLowerCase().includes('watermarked'))) {
+          continue;
+        }
+        
+        const width = format.width || 0;
+        const height = format.height || 0;
+        const pixels = width * height;
+        const tbr = format.tbr || 0;
+        
+        if (pixels > maxPixels || (pixels === maxPixels && bestFormat && tbr > bestFormat.tbr)) {
+          maxPixels = pixels;
+          bestFormat = format;
+        }
+      }
+    }
+
+    const hd_url = (bestFormat && bestFormat.url) ? bestFormat.url : (videoData.url || (videoData.formats && videoData.formats.length > 0 ? videoData.formats[videoData.formats.length - 1].url : ''));
 
     console.log(`[success] Extracted direct URL for: ${cleanUrl}`);
 

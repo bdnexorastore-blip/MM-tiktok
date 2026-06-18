@@ -89,35 +89,23 @@ export default function Home() {
       // Unique filename using timestamp + index so Android doesn't prompt 'Download again?'
       const uniqueSuffix = type === "image" && imageIndex !== undefined ? `_${imageIndex + 1}` : "";
       const filename = `MM_TIKTOK_${titleClean}${uniqueSuffix}.${ext}`;
-      const response = await fetch("/api/proxy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: fileUrl,
-          filename: filename,
-          http_headers: result?.http_headers || {}
-        })
-      });
-      if (!response.ok) throw new Error("Fetch failed");
-      
-      const blob = await response.blob();
-      const tempUrl = window.URL.createObjectURL(blob);
+      const encodedHeaders = btoa(JSON.stringify(result?.http_headers || {}));
+      const downloadUrl = `/api/proxy?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}&headers=${encodedHeaders}`;
       
       const a = document.createElement("a");
       a.style.display = "none";
-      a.href = tempUrl;
+      a.href = downloadUrl;
       a.download = filename;
       
       document.body.appendChild(a);
       a.click();
       
-      // Let the click propagate before revoking the blob URL
+      // Let the click propagate before cleanup
       setTimeout(() => {
-        window.URL.revokeObjectURL(tempUrl);
         document.body.removeChild(a);
       }, 300);
       
-      showToast("Download Complete!", "success");
+      showToast("Download Started!", "success");
       
     } catch (err) {
       console.error("Failed to download file natively", err);
@@ -219,7 +207,7 @@ export default function Home() {
         error: (e: Error) => { throw e; },
       });
       videoEncoder.configure({
-        codec: "avc1.42001f",  // H.264 Baseline Profile Level 3.1
+        codec: "avc1.4d0028",  // H.264 Main Profile Level 4.0 (Fixes Android black screens)
         width: W, height: H,
         bitrate: 1_500_000,
         framerate: 25,

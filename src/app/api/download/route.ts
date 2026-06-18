@@ -20,8 +20,8 @@ export async function POST(req: Request) {
 
     // Use our custom VPS backend instead of tikwm
     // You should set VPS_BACKEND_URL in your Vercel Environment Variables
-    // Defaulting to localhost:4000 for local testing
-    const vpsBackendUrl = process.env.VPS_BACKEND_URL || "http://localhost:4000";
+    // Defaulting to the newly deployed Render URL
+    const vpsBackendUrl = process.env.VPS_BACKEND_URL || "https://mm-tiktok.onrender.com";
     const apiUrl = `${vpsBackendUrl}/api/download`;
     
     // Call the VPS backend
