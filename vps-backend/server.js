@@ -76,6 +76,7 @@ const spawnPromise = (cmd, args, timeoutMs = 120000) => {
 // ─── yt-dlp common headers for TikTok ────────────────────────────────────────
 // These headers mimic a real browser and prevent TikTok from blocking yt-dlp.
 const YTDLP_COMMON_ARGS = [
+  '--impersonate', 'chrome',
   '--no-warnings',
   '--no-playlist',
   '--add-header', 'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',

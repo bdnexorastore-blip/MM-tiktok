@@ -6,9 +6,9 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp globally
-RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
-    chmod a+rx /usr/local/bin/yt-dlp
+# Install yt-dlp and curl-cffi via pip to handle TikTok impersonation and IP blocks
+RUN pip3 install -U pip && \
+    pip3 install -U yt-dlp curl-cffi
 
 # Set working directory
 WORKDIR /app
