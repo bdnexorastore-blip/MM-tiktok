@@ -30,6 +30,11 @@ export default function Home() {
       setError("Please put a valid TikTok URL");
       return;
     }
+
+    if (!linkToDownload.includes("tiktok")) {
+      setError("Invalid link. Please paste a URL from TikTok.");
+      return;
+    }
     
     setError("");
     setLoading(true);
@@ -46,7 +51,11 @@ export default function Home() {
       }
     } catch (err) {
       console.error(err);
-      setError("An error occurred while fetching the video.");
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError("An error occurred while fetching the video. The server might be down.");
+      }
     } finally {
       setLoading(false);
     }
@@ -60,12 +69,13 @@ export default function Home() {
   const handlePasteAndDownload = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text) {
-        // Automatically extract URL if Android/iOS appended the "Share" text
+      if (text && text.trim().length > 0) {
         const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
         const cleanText = urlMatch ? urlMatch[0] : text;
         setUrl(cleanText);
         processDownload(cleanText);
+      } else {
+        setError("Your clipboard is empty. Please copy a TikTok link first.");
       }
     } catch (err) {
       console.log("Failed to paste", err);
