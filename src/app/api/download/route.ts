@@ -56,8 +56,8 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-  } catch (error) {
-    console.error("TikTok VPS API Error:", error instanceof Error ? error.message : String(error));
+  } catch (error: any) {
+    console.error("TikTok VPS API Error Output:", error);
     
     let errorMessage = "Network error or API blocked. Try another link.";
     if (axios.isAxiosError(error)) {
@@ -65,7 +65,11 @@ export async function POST(req: Request) {
         errorMessage = "The download took too long and timed out. Please try again.";
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
+    } else if (error && error.message) {
+       errorMessage = error.message;
     }
 
     return NextResponse.json(

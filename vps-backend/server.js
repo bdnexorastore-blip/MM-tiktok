@@ -92,89 +92,103 @@ app.post('/api/download', async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Please provide a valid TikTok link' });
   }
 
-  // Extract clean URL (strips any surrounding share-text on Android/iOS)
-  const urlMatch = url.match(/(https?:\/\/[^\s"']+)/);
-  if (!urlMatch) {
-    return res.status(400).json({ status: 'error', message: 'Invalid URL format' });
-  }
-  const cleanUrl = urlMatch[0];
-
-  try {
-    // ── 1. Fetch metadata & direct URLs via yt-dlp --dump-json ────────────────
-    const metaArgs = [
-      ...YTDLP_COMMON_ARGS,
-      '--dump-json',
-      cleanUrl,
-    ];
-    
-    console.log(`[extract] Starting for: ${cleanUrl}`);
-    const { stdout: metaOut } = await spawnPromise('yt-dlp', metaArgs, 30000);
-    const videoData = JSON.parse(metaOut);
-    
-    const title = videoData.title || videoData.fulltitle || 'TikTok Video';
-    const author = videoData.uploader || 'TikTok User';
-    const uploaderId = videoData.uploader_id || author.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-    
-    // Fallback to highest quality thumbnail available
-    let cover = '';
-    if (videoData.thumbnails && videoData.thumbnails.length > 0) {
-      cover = videoData.thumbnails[videoData.thumbnails.length - 1].url;
-    } else {
-      cover = videoData.thumbnail || '';
+    // Extract clean URL (strips any surrounding share-text on Android/iOS)
+    const urlMatch = url.match(/(https?:\/\/[^\s"']+)/);
+    if (!urlMatch) {
+      return res.status(400).json({ status: 'error', message: 'Invalid URL format' });
     }
+    const cleanUrl = urlMatch[0];
 
-    // Find the highest quality unwatermarked video
-    let bestFormat = null;
-    let maxPixels = 0;
+    try {
+      console.log(`[extract] Fetching from TikWM for: ${cleanUrl}`);
+      const axios = require('axios');
+      
+      // Attempt 1: tikwm
+      let response = await axios.post('https://www.tikwm.com/api/', { url: cleanUrl, hd: 1 }, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      
+      let data = response.data;
+      if (data && data.code === 0 && data.data) {
+        console.log(`[success] Extracted via TikWM: ${cleanUrl}`);
+        const videoData = data.data;
+        
+        // Return standard response format
+        return res.json({
+          status: 'success',
+          data: {
+            title: videoData.title || '',
+            author: {
+              nickname: videoData.author?.nickname || '',
+              unique_id: videoData.author?.unique_id || '',
+              avatar: videoData.author?.avatar || '',
+            },
+            cover: videoData.cover || '',
+            hd_url: videoData.hdplay || videoData.play || '',
+            sd_url: videoData.play || '',
+            images: videoData.images || [],
+          },
+        });
+      } else {
+        throw new Error(data.msg || "TikWM extraction failed");
+      }
+    } catch (err) {
+      console.error('[error] TikWM failed, trying fallback...', err.message || err);
+      
+      try {
+        // Fallback 2: lovetik.com
+        const axios = require('axios');
+        let response2 = await axios.post('https://lovetik.com/api/ajax/search', `query=${encodeURIComponent(cleanUrl)}`, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        
+        let data2 = response2.data;
+        if (data2 && data2.status === 'ok' && data2.links && data2.links.length > 0) {
+          console.log(`[success] Extracted via Lovetik: ${cleanUrl}`);
+          
+          let hd_url = '';
+          let sd_url = '';
+          
+          // Find the best quality mp4
+          for (const link of data2.links) {
+            if (link.t.includes('MP4')) {
+              if (link.s.includes('1080') || link.s.toLowerCase().includes('hd')) {
+                hd_url = link.a;
+              } else if (!sd_url) {
+                sd_url = link.a;
+              }
+            }
+          }
+          
+          if (!hd_url) hd_url = data2.links[0].a;
+          if (!sd_url) sd_url = hd_url;
 
-    if (videoData.formats && videoData.formats.length > 0) {
-      for (const format of videoData.formats) {
-        // Skip formats that are explicitly audio-only or have a 'watermarked' note
-        if (format.vcodec === 'none' || (format.format_note && format.format_note.toLowerCase().includes('watermarked'))) {
-          continue;
+          return res.json({
+            status: 'success',
+            data: {
+              title: data2.desc || '',
+              author: {
+                nickname: data2.author_name || '',
+                unique_id: data2.author || '',
+                avatar: data2.author_a || '',
+              },
+              cover: data2.cover || '',
+              hd_url: hd_url,
+              sd_url: sd_url,
+              images: [],
+            },
+          });
+        } else {
+          throw new Error("Lovetik fallback failed");
         }
-        
-        const width = format.width || 0;
-        const height = format.height || 0;
-        const pixels = width * height;
-        const tbr = format.tbr || 0;
-        
-        if (pixels > maxPixels || (pixels === maxPixels && bestFormat && tbr > bestFormat.tbr)) {
-          maxPixels = pixels;
-          bestFormat = format;
-        }
+      } catch (err2) {
+        console.error('[error] Fallback failed:', err2.message || err2);
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to process video. It may be private, deleted, or temporarily unavailable.',
+        });
       }
     }
-
-    const hd_url = (bestFormat && bestFormat.url) ? bestFormat.url : (videoData.url || (videoData.formats && videoData.formats.length > 0 ? videoData.formats[videoData.formats.length - 1].url : ''));
-
-    console.log(`[success] Extracted direct URL for: ${cleanUrl}`);
-
-    return res.json({
-      status: 'success',
-      data: {
-        title,
-        author: {
-          nickname:  author,
-          unique_id: uploaderId,
-          avatar:    '', // yt-dlp doesn't easily fetch avatar directly without extra parsing
-        },
-        cover,
-        hd_url: hd_url,
-        sd_url: hd_url,
-        images: [],
-        http_headers: videoData.http_headers || {}, // Can implement slide extraction if needed
-      },
-    });
-
-  } catch (err) {
-    console.error('[error]', err.message || err);
-
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to process video. It may be private, deleted, or temporarily unavailable.',
-    });
-  }
 });
 
 // ─── Auto-cleanup: delete files older than 30 minutes ────────────────────────
