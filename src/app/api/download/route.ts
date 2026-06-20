@@ -41,7 +41,7 @@ export async function POST(req: Request) {
           cover: scraperData.data.cover,
           sd_url: scraperData.data.sd_url,
           hd_url: scraperData.data.hd_url,
-          mp3_url: "", // Our VPS currently focuses on video. Add audio logic to VPS if needed.
+          mp3_url: scraperData.data.audio_url || "", // Map audio_url from VPS
           author: scraperData.data.author,
           images: scraperData.data.images || [], 
           http_headers: scraperData.data.http_headers || {},
