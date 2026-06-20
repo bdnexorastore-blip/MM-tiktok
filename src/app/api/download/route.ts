@@ -56,6 +56,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error("TikTok VPS API Error Output:", error);
     
