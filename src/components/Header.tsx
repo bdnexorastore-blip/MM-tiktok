@@ -110,7 +110,7 @@ export default function Header({ title, showBack = false }: HeaderProps) {
               
               <div className="h-px bg-gray-200/50 my-2 mx-4" />
               <div className="px-5 py-2 text-[11px] font-[800] text-gray-400 text-center tracking-widest opacity-80">
-                VER 1.1.0
+                VER 1.1.3
               </div>
             </div>
           </>

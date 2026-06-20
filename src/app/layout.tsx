@@ -23,6 +23,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "MM TIKTOK",
   },
+  verification: {
+    google: "1O709zKVp3mHuLlvN1tBdycXkeUVKizrVt2GWDSgb60",
+  },
 };
 
 export default function RootLayout({

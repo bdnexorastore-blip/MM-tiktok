@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { DownloadCloud } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
 
 import packageJson from "../../package.json";
 
@@ -9,39 +8,10 @@ import packageJson from "../../package.json";
 const APP_VERSION = packageJson.version;
 
 export default function PWAContext() {
-  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  useEffect(() => {
-    // 1. Register the Service Worker
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/sw.js")
-          .then((reg) => console.log("PWA Service Worker registered", reg.scope))
-          .catch((err) => console.error("PWA Service Worker registration failed", err));
-      });
-    }
-
-    // 2. Poll for Version Mismatches
-    const checkVersion = async () => {
-      try {
-        const res = await fetch(`/version.json?t=${Date.now()}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        
-        if (data.version && data.version !== APP_VERSION) {
-          setUpdateAvailable(true);
-        }
-      } catch (err) {
-        console.error("Failed to check app version", err);
-      }
-    };
-    
-    checkVersion();
-  }, []);
-
-  const handleApplyUpdate = async () => {
+  const handleApplyUpdate = useCallback(async () => {
+    if (isUpdating) return;
     setIsUpdating(true);
     
     try {
@@ -66,33 +36,38 @@ export default function PWAContext() {
     // Force a fresh reload from the server after a short visual delay
     setTimeout(() => {
       window.location.reload();
-    }, 800);
-  };
+    }, 500);
+  }, [isUpdating]);
 
-  if (!updateAvailable) return null;
+  useEffect(() => {
+    // 1. Register the Service Worker
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then((reg) => console.log("PWA Service Worker registered", reg.scope))
+          .catch((err) => console.error("PWA Service Worker registration failed", err));
+      });
+    }
 
-  return (
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:w-80 z-[99999] animate-in slide-in-from-bottom-10 fade-in duration-500">
-      <div className="bg-blue-600 shadow-[0_20px_50px_rgba(37,99,235,0.4)] border border-blue-400 p-4 rounded-2xl flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-500/50 rounded-full shrink-0">
-            <DownloadCloud className="w-5 h-5 text-white animate-pulse" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-white font-bold text-sm">Update Available</span>
-            <span className="text-blue-100 font-medium text-[11px] leading-tight mt-0.5">
-              Get the latest cache fixes & HD video paths.
-            </span>
-          </div>
-        </div>
-        <button 
-          onClick={handleApplyUpdate}
-          disabled={isUpdating}
-          className="ml-3 px-4 py-2 bg-white text-blue-600 border border-white hover:bg-white/90 rounded-xl text-xs sm:text-sm font-bold shadow-sm active:scale-95 transition-all shrink-0 min-w-[80px] flex items-center justify-center disabled:opacity-80"
-        >
-          {isUpdating ? "Updating..." : "Update"}
-        </button>
-      </div>
-    </div>
-  );
+    // 2. Poll for Version Mismatches
+    const checkVersion = async () => {
+      try {
+        const res = await fetch(`/version.json?t=${Date.now()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data.version && data.version !== APP_VERSION) {
+          // Auto update triggered
+          handleApplyUpdate();
+        }
+      } catch (err) {
+        console.error("Failed to check app version", err);
+      }
+    };
+    
+    checkVersion();
+  }, [handleApplyUpdate]);
+
+  return null;
 }
