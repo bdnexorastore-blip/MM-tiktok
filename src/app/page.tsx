@@ -347,7 +347,7 @@ export default function Home() {
   const hasContent = loading || result || error;
 
   return (
-    <main className="flex flex-col min-h-[100dvh] relative overflow-hidden bg-gradient-to-br from-blue-50/80 via-white to-blue-100/60 p-4 pb-12 pt-20">
+    <main className="flex flex-col min-h-[100dvh] relative overflow-x-hidden overflow-y-auto bg-gradient-to-br from-blue-50/80 via-white to-blue-100/60 p-4 pb-12 pt-20">
       
       {/* Top Header Navigation */}
       <Header />
