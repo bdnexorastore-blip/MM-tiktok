@@ -199,6 +199,73 @@ app.post('/api/download', async (req, res) => {
     }
 });
 
+// ─── Facebook Download Route ────────────────────────────────────────────────────
+app.post('/api/facebook', async (req, res) => {
+  const { url } = req.body;
+  if (!url || !url.includes('facebook.com') && !url.includes('fb.watch')) {
+    return res.status(400).json({ status: 'error', message: 'Please provide a valid Facebook link' });
+  }
+
+  const urlMatch = url.match(/(https?:\/\/[^\s"']+)/);
+  if (!urlMatch) {
+    return res.status(400).json({ status: 'error', message: 'Invalid URL format' });
+  }
+  const cleanUrl = urlMatch[0];
+
+  try {
+    const axios = require('axios');
+    console.log(`[extract] Fetching Facebook video: ${cleanUrl}`);
+    
+    let response = await axios.get(`https://api.siputzx.my.id/api/d/facebook?url=${encodeURIComponent(cleanUrl)}`, {
+      timeout: 10000
+    });
+    
+    const data = response.data;
+    if (data && data.status && data.data && data.data.downloads) {
+      console.log(`[success] Facebook video extracted`);
+      
+      let hd_url = '';
+      let sd_url = '';
+      
+      data.data.downloads.forEach(d => {
+        if (d.quality.toLowerCase().includes('hd') || d.quality.includes('720p') || d.quality.includes('1080p')) {
+          hd_url = d.url;
+        } else if (d.quality.toLowerCase().includes('sd') || d.quality.includes('360p')) {
+          sd_url = d.url;
+        }
+      });
+      
+      if (!hd_url && data.data.downloads.length > 0) hd_url = data.data.downloads[0].url;
+      if (!sd_url) sd_url = hd_url;
+
+      return res.json({
+        status: 'success',
+        data: {
+          title: data.data.title || 'Facebook Video',
+          author: {
+            nickname: 'Facebook User',
+            unique_id: 'facebook',
+            avatar: '',
+          },
+          cover: data.data.thumbnail || '',
+          hd_url: hd_url,
+          sd_url: sd_url,
+          audio_url: '', // SIPUTZX API does not provide separate MP3 for FB
+          images: [],
+        },
+      });
+    } else {
+      throw new Error("Failed to extract Facebook video");
+    }
+  } catch (err) {
+    console.error('[error] Facebook fetch failed:', err.message || err);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to process Facebook video. It may be private, deleted, or unsupported.',
+    });
+  }
+});
+
 // ─── Auto-cleanup: delete files older than 30 minutes ────────────────────────
 cron.schedule('*/15 * * * *', () => {
   console.log('[cron] Running cleanup...');

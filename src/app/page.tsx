@@ -9,6 +9,7 @@ import TikTokLogo from "@/components/TikTokLogo";
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [fbUrl, setFbUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [downloadingType, setDownloadingType] = useState<"video" | "mp3" | "image" | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,14 +26,18 @@ export default function Home() {
     }
   };
   
-  const processDownload = async (linkToDownload: string) => {
+  const processDownload = async (linkToDownload: string, platform: "tiktok" | "facebook") => {
     if (!linkToDownload.trim()) {
-      setError("Please put a valid TikTok URL");
+      setError(`Please put a valid ${platform === "tiktok" ? "TikTok" : "Facebook"} URL`);
       return;
     }
 
-    if (!linkToDownload.includes("tiktok")) {
+    if (platform === "tiktok" && !linkToDownload.includes("tiktok")) {
       setError("Invalid link. Please paste a URL from TikTok.");
+      return;
+    }
+    if (platform === "facebook" && !linkToDownload.includes("facebook.com") && !linkToDownload.includes("fb.watch")) {
+      setError("Invalid link. Please paste a URL from Facebook.");
       return;
     }
     
@@ -42,17 +47,20 @@ export default function Home() {
     setActiveImageIndex(0);
 
     try {
-      const response = await axios.post("/api/download", { url: linkToDownload });
+      const endpoint = platform === "tiktok" ? "/api/download" : "/api/facebook";
+      const response = await axios.post(endpoint, { url: linkToDownload });
       
-      if (response.data.status === "success") {
-        setResult(response.data.data);
+      if (response.data.status === "success" || response.data.success) {
+        setResult(response.data.data || response.data.video);
       } else {
-        setError(response.data.message || "Failed to download video. Please try again.");
+        setError(response.data.message || response.data.error || "Failed to download video. Please try again.");
       }
     } catch (err) {
       console.error(err);
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         setError(err.response.data.message);
+      } else if (axios.isAxiosError(err) && err.response?.data?.error) {
+        setError(err.response.data.error);
       } else {
         setError("An error occurred while fetching the video. The server might be down.");
       }
@@ -63,24 +71,39 @@ export default function Home() {
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    processDownload(url);
+    processDownload(url, "tiktok");
   };
 
-  const handlePasteAndDownload = async () => {
+  const handleFbManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    processDownload(fbUrl, "facebook");
+  };
+
+  const handlePasteAndDownload = async (platform: "tiktok" | "facebook") => {
     try {
       const text = await navigator.clipboard.readText();
       if (text && text.trim().length > 0) {
         const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
         const cleanText = urlMatch ? urlMatch[0] : text;
-        setUrl(cleanText);
-        processDownload(cleanText);
+        if (platform === "tiktok") {
+          setUrl(cleanText);
+          processDownload(cleanText, "tiktok");
+        } else {
+          setFbUrl(cleanText);
+          processDownload(cleanText, "facebook");
+        }
       } else {
-        setError("Your clipboard is empty. Please copy a TikTok link first.");
+        setError(`Your clipboard is empty. Please copy a ${platform === "tiktok" ? "TikTok" : "Facebook"} link first.`);
       }
     } catch (err) {
       console.log("Failed to paste", err);
-      if (url) processDownload(url);
-      else setError("Clipboard access denied. Please paste manually and hit Download.");
+      if (platform === "tiktok") {
+        if (url) processDownload(url, "tiktok");
+        else setError("Clipboard access denied. Please paste manually and hit Download.");
+      } else {
+        if (fbUrl) processDownload(fbUrl, "facebook");
+        else setError("Clipboard access denied. Please paste manually and hit Download.");
+      }
     }
   };
 
@@ -339,79 +362,152 @@ export default function Home() {
         {/* Header Text & Beautiful Transparent TikTok Logo */}
         <div className={`flex flex-col items-center text-center transition-all duration-700 ${hasContent ? "scale-90 opacity-90 mb-6 hidden sm:flex" : "scale-100 mb-10"}`}>
           
-          {/* Glassmorphic TikTok Logo */}
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-[22px] bg-gradient-to-tr from-[#00f2fe] via-[#4facfe] to-[#f093fb] p-[2px] mb-5 shadow-lg shadow-blue-500/20 animate-in zoom-in spin-in-12 duration-1000">
-            <div className="w-full h-full bg-white/70 backdrop-blur-xl rounded-[20px] flex items-center justify-center">
-              <TikTokLogo className="w-8 h-8 md:w-10 md:h-10 text-gray-900 drop-shadow-sm transition-transform hover:scale-110 duration-300" />
+          {/* Glassmorphic Logos Container */}
+          <div className="flex items-center gap-4 mb-5 animate-in zoom-in spin-in-12 duration-1000">
+            {/* TikTok Logo */}
+            <div className="w-14 h-14 md:w-16 md:h-16 rounded-[20px] bg-gradient-to-tr from-[#00f2fe] via-[#4facfe] to-[#f093fb] p-[2px] shadow-lg shadow-blue-500/20">
+              <div className="w-full h-full bg-white/70 backdrop-blur-xl rounded-[18px] flex items-center justify-center">
+                <TikTokLogo className="w-7 h-7 md:w-8 md:h-8 text-gray-900 drop-shadow-sm transition-transform hover:scale-110 duration-300" />
+              </div>
+            </div>
+            
+            <div className="text-gray-400 font-bold text-lg">&</div>
+            
+            {/* Facebook Logo */}
+            <div className="w-14 h-14 md:w-16 md:h-16 rounded-[20px] bg-gradient-to-tr from-[#1877F2] to-[#0d59b8] p-[2px] shadow-lg shadow-blue-500/20">
+              <div className="w-full h-full bg-white/70 backdrop-blur-xl rounded-[18px] flex items-center justify-center">
+                <svg className="w-7 h-7 md:w-8 md:h-8 text-[#1877F2] drop-shadow-sm transition-transform hover:scale-110 duration-300" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+              </div>
             </div>
           </div>
 
-          <h1 className={`font-black text-gray-900 tracking-tight transition-all duration-700 ${hasContent ? "text-2xl md:text-3xl mb-1" : "text-4xl md:text-5xl lg:text-7xl mb-3 leading-tight"}`}>
-            Download TikTok Free
+          <h1 className={`font-black text-gray-900 tracking-tight transition-all duration-700 ${hasContent ? "text-2xl md:text-3xl mb-1" : "text-3xl md:text-5xl lg:text-6xl mb-3 leading-tight"}`}>
+            TikTok & Facebook Downloader
           </h1>
           <p className={`text-gray-600 font-medium transition-all duration-700 max-w-xl ${hasContent ? "text-sm hidden sm:block" : "text-base md:text-lg"}`}>
-            The fastest tool to save TikTok videos in <span className="text-blue-600 font-bold">Ultra HD without watermark</span> and get MP3 audio instantly.
+            The fastest tool to save videos in <span className="text-blue-600 font-bold">Ultra HD without watermark</span> and get MP3 audio instantly.
           </p>
         </div>
 
         {/* Central Input Box or Reboot Button */}
-        <div className={`w-full max-w-2xl flex flex-col items-center transition-all duration-700 ${hasContent ? "order-last mt-10" : "order-2"}`}>
+        <div className={`w-full max-w-2xl flex flex-col items-center gap-4 transition-all duration-700 ${hasContent ? "order-last mt-10" : "order-2"}`}>
           
           {!hasContent ? (
-            <form 
-              onSubmit={handleManualSubmit} 
-              className="w-full relative glass-card p-2 flex items-center gap-2 transition-all duration-500 shadow-[0_10px_40px_rgba(37,99,235,0.08)] bg-white/90 border border-blue-100 hover:border-blue-300"
-            >
-              <div className="pl-3 hidden sm:flex">
-                <LinkIcon className="text-blue-500 w-5 h-5 flex-shrink-0" />
-              </div>
-              
-              <input 
-                type="url" 
-                placeholder="Paste TikTok link here..." 
-                className="flex-1 bg-transparent px-3 py-3 outline-none text-gray-800 placeholder:text-gray-400 font-medium text-base min-w-0"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={loading}
-              />
+            <div className="w-full flex flex-col gap-5">
+              {/* TikTok Input Form */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-bold text-gray-600 ml-2">TikTok Downloader</span>
+                <form 
+                  onSubmit={handleManualSubmit} 
+                  className="w-full relative glass-card p-2 flex items-center gap-2 transition-all duration-500 shadow-[0_10px_40px_rgba(37,99,235,0.08)] bg-white/90 border border-blue-100 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10"
+                >
+                  <div className="pl-3 hidden sm:flex">
+                    <TikTokLogo className="text-blue-500 w-5 h-5 flex-shrink-0" />
+                  </div>
+                  
+                  <input 
+                    type="url" 
+                    placeholder="Paste TikTok link here..." 
+                    className="flex-1 bg-transparent px-3 py-3 outline-none text-gray-800 placeholder:text-gray-400 font-medium text-base min-w-0"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    disabled={loading}
+                  />
 
-              <button
-                type="submit"
-                onClick={(e) => {
-                  // If URL already has content (manually typed/pasted), submit directly
-                  if (url.trim()) {
-                    e.preventDefault();
-                    processDownload(url);
-                  } else {
-                    // Empty field: read from clipboard
-                    e.preventDefault();
-                    handlePasteAndDownload();
-                  }
-                }}
-                disabled={loading}
-                title={url.trim() ? "Download" : "Paste & Download"}
-                className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-lg shadow-blue-500/30 active:scale-[0.96] disabled:opacity-70 flex-shrink-0 min-w-[120px]"
-              >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : url.trim() ? (
-                  <>
-                    <Download className="w-5 h-5" />
-                    <span>Download</span>
-                  </>
-                ) : (
-                  <>
-                    <ClipboardPaste className="w-5 h-5" />
-                    <span>Paste</span>
-                  </>
-                )}
-              </button>
-            </form>
+                  <button
+                    type="submit"
+                    onClick={(e) => {
+                      if (url.trim()) {
+                        e.preventDefault();
+                        processDownload(url, "tiktok");
+                      } else {
+                        e.preventDefault();
+                        handlePasteAndDownload("tiktok");
+                      }
+                    }}
+                    disabled={loading}
+                    title={url.trim() ? "Download" : "Paste & Download"}
+                    className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold transition-all shadow-lg shadow-blue-500/30 active:scale-[0.96] disabled:opacity-70 flex-shrink-0 min-w-[120px]"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : url.trim() ? (
+                      <>
+                        <Download className="w-5 h-5" />
+                        <span>Download</span>
+                      </>
+                    ) : (
+                      <>
+                        <ClipboardPaste className="w-5 h-5" />
+                        <span>Paste</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Facebook Input Form */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-bold text-gray-600 ml-2">Facebook Downloader</span>
+                <form 
+                  onSubmit={handleFbManualSubmit} 
+                  className="w-full relative glass-card p-2 flex items-center gap-2 transition-all duration-500 shadow-[0_10px_40px_rgba(37,99,235,0.08)] bg-white/90 border border-blue-100 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10"
+                >
+                  <div className="pl-3 hidden sm:flex">
+                    <svg className="text-[#1877F2] w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                  </div>
+                  
+                  <input 
+                    type="url" 
+                    placeholder="Paste Facebook video or reel link here..." 
+                    className="flex-1 bg-transparent px-3 py-3 outline-none text-gray-800 placeholder:text-gray-400 font-medium text-base min-w-0"
+                    value={fbUrl}
+                    onChange={(e) => setFbUrl(e.target.value)}
+                    disabled={loading}
+                  />
+
+                  <button
+                    type="submit"
+                    onClick={(e) => {
+                      if (fbUrl.trim()) {
+                        e.preventDefault();
+                        processDownload(fbUrl, "facebook");
+                      } else {
+                        e.preventDefault();
+                        handlePasteAndDownload("facebook");
+                      }
+                    }}
+                    disabled={loading}
+                    title={fbUrl.trim() ? "Download" : "Paste & Download"}
+                    className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#1877F2] to-[#0d59b8] hover:from-[#166fe5] hover:to-[#0a4897] text-white font-bold transition-all shadow-lg shadow-blue-500/30 active:scale-[0.96] disabled:opacity-70 flex-shrink-0 min-w-[120px]"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : fbUrl.trim() ? (
+                      <>
+                        <Download className="w-5 h-5" />
+                        <span>Download</span>
+                      </>
+                    ) : (
+                      <>
+                        <ClipboardPaste className="w-5 h-5" />
+                        <span>Paste</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </div>
           ) : (
             // Beautiful Reset Button shown when content is loaded
             <button
               onClick={() => {
                 setUrl("");
+                setFbUrl("");
                 setResult(null);
                 setLoading(false);
                 setError("");
