@@ -100,100 +100,102 @@ app.post('/api/download', async (req, res) => {
     const cleanUrl = urlMatch[0];
 
     try {
-      console.log(`[extract] Fetching from TikWM for: ${cleanUrl}`);
       const axios = require('axios');
       
-      // Attempt 1: tikwm
-      let response = await axios.post('https://www.tikwm.com/api/', { url: cleanUrl, hd: 1 }, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      });
-      
-      let data = response.data;
-      if (data && data.code === 0 && data.data) {
-        console.log(`[success] Extracted via TikWM: ${cleanUrl}`);
-        const videoData = data.data;
-        
-        // Return standard response format
-          return res.json({
-            status: 'success',
-            data: {
-              title: videoData.title || '',
-              author: {
-                nickname: videoData.author?.nickname || '',
-                unique_id: videoData.author?.unique_id || '',
-                avatar: videoData.author?.avatar || '',
-              },
-              cover: videoData.cover || '',
-              hd_url: videoData.hdplay || videoData.play || '',
-              sd_url: videoData.play || '',
-              audio_url: videoData.music || videoData.music_info?.play || '',
-              images: videoData.images || [],
+      const fetchTikWM = async () => {
+        let response = await axios.post('https://www.tikwm.com/api/', { url: cleanUrl, hd: 1 }, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 6000
+        });
+        let data = response.data;
+        if (data && data.code === 0 && data.data) {
+          return { provider: 'tikwm', data: data.data };
+        }
+        throw new Error(data?.msg || "TikWM extraction failed");
+      };
+
+      const fetchLovetik = async () => {
+        let response = await axios.post('https://lovetik.com/api/ajax/search', `query=${encodeURIComponent(cleanUrl)}`, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 6000
+        });
+        let data = response.data;
+        if (data && data.status === 'ok' && data.links && data.links.length > 0) {
+          return { provider: 'lovetik', data: data };
+        }
+        throw new Error("Lovetik fallback failed");
+      };
+
+      // Race both APIs to get the fastest successful response
+      console.log(`[extract] Racing TikWM and Lovetik for: ${cleanUrl}`);
+      const result = await Promise.any([fetchTikWM(), fetchLovetik()]);
+
+      if (result.provider === 'tikwm') {
+        console.log(`[success] Fast Response via TikWM: ${cleanUrl}`);
+        const videoData = result.data;
+        return res.json({
+          status: 'success',
+          data: {
+            title: videoData.title || '',
+            author: {
+              nickname: videoData.author?.nickname || '',
+              unique_id: videoData.author?.unique_id || '',
+              avatar: videoData.author?.avatar || '',
             },
-          });
-        } else {
-          throw new Error(data.msg || "TikWM extraction failed");
-        }
-      } catch (err) {
-        console.error('[error] TikWM failed, trying fallback...', err.message || err);
+            cover: videoData.cover || '',
+            hd_url: videoData.hdplay || videoData.play || '',
+            sd_url: videoData.play || '',
+            audio_url: videoData.music || videoData.music_info?.play || '',
+            images: videoData.images || [],
+          },
+        });
+      } else {
+        console.log(`[success] Fast Response via Lovetik: ${cleanUrl}`);
+        const data2 = result.data;
+        let hd_url = '';
+        let sd_url = '';
+        let audio_url = '';
         
-        try {
-          // Fallback 2: lovetik.com
-          const axios = require('axios');
-          let response2 = await axios.post('https://lovetik.com/api/ajax/search', `query=${encodeURIComponent(cleanUrl)}`, {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-          });
-          
-          let data2 = response2.data;
-          if (data2 && data2.status === 'ok' && data2.links && data2.links.length > 0) {
-            console.log(`[success] Extracted via Lovetik: ${cleanUrl}`);
-            
-            let hd_url = '';
-            let sd_url = '';
-            let audio_url = '';
-            
-            // Find the best quality mp4 and mp3
-            for (const link of data2.links) {
-              if (link.t.includes('MP4')) {
-                if (link.s.includes('1080') || link.s.toLowerCase().includes('hd')) {
-                  hd_url = link.a;
-                } else if (!sd_url) {
-                  sd_url = link.a;
-                }
-              }
-              if (link.t.includes('MP3')) {
-                audio_url = link.a;
-              }
+        for (const link of data2.links) {
+          if (link.t.includes('MP4')) {
+            if (link.s.includes('1080') || link.s.toLowerCase().includes('hd')) {
+              hd_url = link.a;
+            } else if (!sd_url) {
+              sd_url = link.a;
             }
-            
-            if (!hd_url) hd_url = data2.links[0].a;
-            if (!sd_url) sd_url = hd_url;
-  
-            return res.json({
-              status: 'success',
-              data: {
-                title: data2.desc || '',
-                author: {
-                  nickname: data2.author_name || '',
-                  unique_id: data2.author || '',
-                  avatar: data2.author_a || '',
-                },
-                cover: data2.cover || '',
-                hd_url: hd_url,
-                sd_url: sd_url,
-                audio_url: audio_url,
-                images: [],
-              },
-            });
-        } else {
-          throw new Error("Lovetik fallback failed");
+          }
+          if (link.t.includes('MP3')) {
+            audio_url = link.a;
+          }
         }
-      } catch (err2) {
-        console.error('[error] Fallback failed:', err2.message || err2);
-        return res.status(500).json({
-          status: 'error',
-          message: 'Failed to process video. It may be private, deleted, or temporarily unavailable.',
+        
+        if (!hd_url) hd_url = data2.links[0]?.a || '';
+        if (!sd_url) sd_url = hd_url;
+
+        return res.json({
+          status: 'success',
+          data: {
+            title: data2.desc || '',
+            author: {
+              nickname: data2.author_name || '',
+              unique_id: data2.author || '',
+              avatar: data2.author_a || '',
+            },
+            cover: data2.cover || '',
+            hd_url: hd_url,
+            sd_url: sd_url,
+            audio_url: audio_url,
+            images: [],
+          },
         });
       }
+
+    } catch (aggregateError) {
+      console.error('[error] All fetch attempts failed:', aggregateError.errors || aggregateError);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to process video. It may be private, deleted, or temporarily unavailable.',
+      });
     }
 });
 
