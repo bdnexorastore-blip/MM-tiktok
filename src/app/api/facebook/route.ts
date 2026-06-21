@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
     }
 
     throw new Error("Unexpected response from scraper");
-  } catch (error: any) {
-    console.error("Facebook API Route Error:", error.message);
+  } catch (error) {
+    console.error("Facebook API Route Error:", error instanceof Error ? error.message : error);
     return NextResponse.json(
       { error: "Internal server error. Please try again later." },
       { status: 500 }
