@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import axios from "axios";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,43 +9,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    // In dev, point to localhost:4000. In prod, point to render.
-    const vpsUrl = process.env.NODE_ENV === "development" 
-      ? "http://localhost:4000" 
-      : (process.env.VPS_BACKEND_URL || "https://mm-tiktok.onrender.com");
-    
-    // Call the VPS backend facebook endpoint
-    const response = await fetch(`${vpsUrl}/api/facebook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+    // Direct Serverless Fetching for ultra-fast <2s response
+    const urlMatch = url.match(/(https?:\/\/[^\s"']+)/);
+    const cleanUrl = urlMatch ? urlMatch[0] : url;
+
+    // We can't use fetch easily with timeout in Next.js without AbortController, 
+    // so we'll use axios (which is already a dependency) for cleaner timeout handling.
+    const response = await axios.get(`https://api.siputzx.my.id/api/d/facebook?url=${encodeURIComponent(cleanUrl)}`, {
+      timeout: 8000 // Fast timeout
     });
 
-    const scraperData = await response.json();
+    const data = response.data;
+    if (data && data.status && data.data && data.data.downloads) {
+      let hd_url = '';
+      let sd_url = '';
+      
+      data.data.downloads.forEach((d: {quality: string, url: string}) => {
+        if (d.quality.toLowerCase().includes('hd') || d.quality.includes('720p') || d.quality.includes('1080p')) {
+          hd_url = d.url;
+        } else if (d.quality.toLowerCase().includes('sd') || d.quality.includes('360p')) {
+          sd_url = d.url;
+        }
+      });
+      
+      if (!hd_url && data.data.downloads.length > 0) hd_url = data.data.downloads[0].url;
+      if (!sd_url) sd_url = hd_url;
 
-    if (!response.ok || scraperData.status === "error") {
-      return NextResponse.json(
-        { error: scraperData.message || "Failed to process Facebook video" },
-        { status: response.status || 500 }
-      );
-    }
-
-    if (scraperData.status === "success" && scraperData.data) {
-      // Map to the same structure the UI expects
       return NextResponse.json({
         success: true,
         video: {
-          title: scraperData.data.title,
-          cover: scraperData.data.cover,
-          hd_url: scraperData.data.hd_url,
-          mp3_url: scraperData.data.audio_url || "",
-          author: scraperData.data.author,
-          images: scraperData.data.images || [],
+          title: data.data.title || 'Facebook Video',
+          author: {
+            nickname: 'Facebook User',
+            unique_id: 'facebook',
+            avatar: '',
+          },
+          cover: data.data.thumbnail || '',
+          hd_url: hd_url,
+          sd_url: sd_url,
+          mp3_url: '', // SIPUTZX API does not provide separate MP3 for FB
+          images: [],
         },
       });
     }
 
-    throw new Error("Unexpected response from scraper");
+    throw new Error("Unexpected response from scraper or no downloads found");
   } catch (error) {
     console.error("Facebook API Route Error:", error instanceof Error ? error.message : error);
     return NextResponse.json(
