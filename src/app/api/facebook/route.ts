@@ -13,13 +13,22 @@ export async function POST(req: NextRequest) {
     const urlMatch = url.match(/(https?:\/\/[^\s"']+)/);
     const cleanUrl = urlMatch ? urlMatch[0] : url;
 
-    // We can't use fetch easily with timeout in Next.js without AbortController, 
-    // so we'll use axios (which is already a dependency) for cleaner timeout handling.
-    const response = await axios.get(`https://api.siputzx.my.id/api/d/facebook?url=${encodeURIComponent(cleanUrl)}`, {
+    // Fetch video data and facebook HTML metadata concurrently to save time
+    const fetchSiputzx = axios.get(`https://api.siputzx.my.id/api/d/facebook?url=${encodeURIComponent(cleanUrl)}`, {
       timeout: 8000 // Fast timeout
     });
 
-    const data = response.data;
+    const fetchFbMeta = axios.get(cleanUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+      },
+      timeout: 5000
+    }).catch(() => null); // ignore errors to not fail the whole request
+
+    const [siputzxRes, fbMetaRes] = await Promise.all([fetchSiputzx, fetchFbMeta]);
+    const data = siputzxRes.data;
+
     if (data && data.status && data.data && data.data.downloads) {
       let hd_url = '';
       let sd_url = '';
@@ -35,16 +44,39 @@ export async function POST(req: NextRequest) {
       if (!hd_url && data.data.downloads.length > 0) hd_url = data.data.downloads[0].url;
       if (!sd_url) sd_url = hd_url;
 
+      // Extract real metadata
+      let realTitle = data.data.title || 'Facebook Video';
+      let realCover = data.data.thumbnail || '';
+      let authorName = 'Facebook User';
+
+      if (fbMetaRes && fbMetaRes.data) {
+        const html = fbMetaRes.data;
+        const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+        if (titleMatch && titleMatch[1]) {
+          realTitle = titleMatch[1].replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&');
+          const parts = realTitle.split(/\||-|on Reels/i);
+          if (parts.length > 1) {
+            authorName = parts[0].trim();
+          } else {
+            authorName = realTitle.split(" ")[0] || 'Facebook User';
+          }
+        }
+        const imgMatch = html.match(/<meta property="og:image" content="(.*?)"/i);
+        if (imgMatch && imgMatch[1]) {
+          realCover = imgMatch[1].replace(/&amp;/g, '&');
+        }
+      }
+
       return NextResponse.json({
         success: true,
         video: {
-          title: data.data.title || 'Facebook Video',
+          title: realTitle,
           author: {
-            nickname: 'Facebook User',
+            nickname: authorName,
             unique_id: 'facebook',
-            avatar: '',
+            avatar: realCover, // Using video cover as the profile pic for better UI
           },
-          cover: data.data.thumbnail || '',
+          cover: realCover,
           hd_url: hd_url,
           sd_url: sd_url,
           mp3_url: '', // SIPUTZX API does not provide separate MP3 for FB
