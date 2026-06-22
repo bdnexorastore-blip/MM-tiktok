@@ -13,18 +13,24 @@ export async function POST(req: NextRequest) {
     const urlMatch = url.match(/(https?:\/\/[^\s"']+)/);
     const cleanUrl = urlMatch ? urlMatch[0] : url;
 
+    // Use AbortController for strict timeouts (since Axios timeout only covers response headers, not body)
+    const siputzxController = new AbortController();
+    const fbMetaController = new AbortController();
+    const siputzxTimeout = setTimeout(() => siputzxController.abort(), 8000);
+    const fbMetaTimeout = setTimeout(() => fbMetaController.abort(), 4000);
+
     // Fetch video data and facebook HTML metadata concurrently to save time
     const fetchSiputzx = axios.get(`https://api.siputzx.my.id/api/d/facebook?url=${encodeURIComponent(cleanUrl)}`, {
-      timeout: 8000 // Fast timeout
-    });
+      signal: siputzxController.signal
+    }).finally(() => clearTimeout(siputzxTimeout));
 
     const fetchFbMeta = axios.get(cleanUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
       },
-      timeout: 5000
-    }).catch(() => null); // ignore errors to not fail the whole request
+      signal: fbMetaController.signal
+    }).catch(() => null).finally(() => clearTimeout(fbMetaTimeout)); // ignore errors to not fail the whole request
 
     const [siputzxRes, fbMetaRes] = await Promise.all([fetchSiputzx, fetchFbMeta]);
     const data = siputzxRes.data;
@@ -85,11 +91,17 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    throw new Error("Unexpected response from scraper or no downloads found");
+    throw new Error("Unexpected response from scraper or no downloads found. SIPUTZX API might be down.");
   } catch (error) {
-    console.error("Facebook API Route Error:", error instanceof Error ? error.message : error);
+    let errorMessage = "Internal server error. Please try again later.";
+    if (axios.isCancel(error)) {
+        errorMessage = "The download took too long and timed out. Please try again.";
+    } else if (error instanceof Error) {
+        errorMessage = error.message;
+    }
+    console.error("Facebook API Route Error:", errorMessage);
     return NextResponse.json(
-      { error: "Internal server error. Please try again later." },
+      { error: errorMessage },
       { status: 500 }
     );
   }
