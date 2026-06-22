@@ -117,11 +117,13 @@ export default function Home() {
     showToast("Downloading... Please wait", "loading");
     
     try {
-      const titleClean = result?.title ? result.title.substring(0, 12).replace(/[^a-zA-Z0-9]/g, '_') : "Media";
+      // Clean title and generate a 2-digit random number
+      const titleClean = result?.title ? result.title.substring(0, 15).replace(/[^a-zA-Z0-9\s]/g, '').trim() || "video" : "video";
       const ext = type === "video" ? "mp4" : type === "image" ? "jpg" : "mp3";
-      // Unique filename using timestamp + index so Android doesn't prompt 'Download again?'
-      const uniqueSuffix = type === "image" && imageIndex !== undefined ? `_${imageIndex + 1}` : "";
-      const filename = `MM_TIKTOK_${titleClean}${uniqueSuffix}.${ext}`;
+      const randomNum = Math.floor(10 + Math.random() * 90); // 10 to 99
+      const uniqueSuffix = type === "image" && imageIndex !== undefined ? ` ${imageIndex + 1}` : "";
+      
+      const filename = `mm-tiktok ${titleClean} ${randomNum}${uniqueSuffix}.${ext}`;
       const encodedHeaders = btoa(JSON.stringify(result?.http_headers || {}));
       const downloadUrl = `/api/proxy?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}&headers=${encodedHeaders}`;
       
@@ -323,12 +325,13 @@ export default function Home() {
 
       // 11 — Download as .mp4
       const titleClean = result?.title
-        ? result.title.substring(0, 12).replace(/[^a-zA-Z0-9]/g, "_")
-        : "Slideshow";
+        ? result.title.substring(0, 15).replace(/[^a-zA-Z0-9\s]/g, '').trim() || "slideshow"
+        : "slideshow";
+      const randomNum = Math.floor(10 + Math.random() * 90);
       const dlUrl = URL.createObjectURL(mp4Blob);
       const a = document.createElement("a");
       a.href = dlUrl;
-      a.download = `MM_TIKTOK_${titleClean}_slides.mp4`;
+      a.download = `mm-tiktok ${titleClean} ${randomNum}.mp4`;
       a.style.display = "none";
       document.body.appendChild(a);
       a.click();
