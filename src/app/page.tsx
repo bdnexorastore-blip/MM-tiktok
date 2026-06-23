@@ -117,10 +117,10 @@ export default function Home() {
     showToast("Downloading... Please wait", "loading");
     
     try {
-      // Clean title and generate a 2-digit random number
-      const titleClean = result?.title ? result.title.substring(0, 15).replace(/[^a-zA-Z0-9\s]/g, '').trim() || "video" : "video";
+      // Clean title from invalid filename characters and generate a 3-digit random number
+      const titleClean = result?.title ? result.title.substring(0, 20).replace(/[\r\n\\/:*?"<>|]/g, '').trim() || "video" : "video";
       const ext = type === "video" ? "mp4" : type === "image" ? "jpg" : "mp3";
-      const randomNum = Math.floor(10 + Math.random() * 90); // 10 to 99
+      const randomNum = Math.floor(100 + Math.random() * 900); // 100 to 999
       const uniqueSuffix = type === "image" && imageIndex !== undefined ? ` ${imageIndex + 1}` : "";
       
       const filename = `mm-tiktok ${titleClean} ${randomNum}${uniqueSuffix}.${ext}`;
@@ -325,9 +325,9 @@ export default function Home() {
 
       // 11 — Download as .mp4
       const titleClean = result?.title
-        ? result.title.substring(0, 15).replace(/[^a-zA-Z0-9\s]/g, '').trim() || "slideshow"
+        ? result.title.substring(0, 20).replace(/[\r\n\\/:*?"<>|]/g, '').trim() || "slideshow"
         : "slideshow";
-      const randomNum = Math.floor(10 + Math.random() * 90);
+      const randomNum = Math.floor(100 + Math.random() * 900);
       const dlUrl = URL.createObjectURL(mp4Blob);
       const a = document.createElement("a");
       a.href = dlUrl;
