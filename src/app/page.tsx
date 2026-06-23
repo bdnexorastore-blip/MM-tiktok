@@ -117,13 +117,12 @@ export default function Home() {
     showToast("Downloading... Please wait", "loading");
     
     try {
-      // Clean title from invalid filename characters and generate a 3-digit random number
-      const titleClean = result?.title ? result.title.substring(0, 20).replace(/[\r\n\\/:*?"<>|]/g, '').trim() || "video" : "video";
+      // Generate a 5-digit random number to avoid unicode HTTP header issues
       const ext = type === "video" ? "mp4" : type === "image" ? "jpg" : "mp3";
-      const randomNum = Math.floor(100 + Math.random() * 900); // 100 to 999
+      const randomNum = Math.floor(10000 + Math.random() * 90000); // 10000 to 99999
       const uniqueSuffix = type === "image" && imageIndex !== undefined ? ` ${imageIndex + 1}` : "";
       
-      const filename = `mm-tiktok ${titleClean} ${randomNum}${uniqueSuffix}.${ext}`;
+      const filename = `mm-tiktok ${randomNum}${uniqueSuffix}.${ext}`;
       const encodedHeaders = btoa(JSON.stringify(result?.http_headers || {}));
       const downloadUrl = `/api/proxy?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}&headers=${encodedHeaders}`;
       
@@ -324,14 +323,11 @@ export default function Home() {
       const mp4Blob = new Blob([mp4Buffer], { type: "video/mp4" });
 
       // 11 — Download as .mp4
-      const titleClean = result?.title
-        ? result.title.substring(0, 20).replace(/[\r\n\\/:*?"<>|]/g, '').trim() || "slideshow"
-        : "slideshow";
-      const randomNum = Math.floor(100 + Math.random() * 900);
+      const randomNum = Math.floor(10000 + Math.random() * 90000); // 10000 to 99999
       const dlUrl = URL.createObjectURL(mp4Blob);
       const a = document.createElement("a");
       a.href = dlUrl;
-      a.download = `mm-tiktok ${titleClean} ${randomNum}.mp4`;
+      a.download = `mm-tiktok ${randomNum}.mp4`;
       a.style.display = "none";
       document.body.appendChild(a);
       a.click();
